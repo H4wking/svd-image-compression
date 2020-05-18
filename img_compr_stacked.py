@@ -5,55 +5,53 @@ import matplotlib
 from svd import svd
 
 
-image = "shrek.jpeg"
+def img_compr_stacked(image, k):
+    img = np.array(Image.open(image))
 
-img = np.array(Image.open(image))
+    img = img / 255
+    row, col, _ = img.shape
 
-img = img / 255
-row, col, _ = img.shape
+    img_red = img[:, :, 0]
+    img_green = img[:, :, 1]
+    img_blue = img[:, :, 2]
 
-print("Size: {} x {}".format(row, col))
+    img_rgb = np.hstack((img_red, img_green, img_blue))
 
-img_red = img[:, :, 0]
-img_green = img[:, :, 1]
-img_blue = img[:, :, 2]
+    U, D, V = svd(img_rgb)
 
-img_rgb = np.hstack((img_red, img_green, img_blue))
+    bytes_stored = sum([matrix.nbytes for matrix in [U, D, V]])
 
-print("Bytes before compression:", img.nbytes)
+    U_k = U[:, 0:k]
+    V_k = V[0:k, :]
+    D_k = D[0:k]
 
-U, D, V = svd(img_rgb)
+    compressed_bytes = sum([matrix.nbytes for matrix in [U_k, D_k, V_k]])
 
-bytes_stored = sum([matrix.nbytes for matrix in [U, D, V]])
+    img_rgb_compr = np.dot(U_k, np.dot(np.diag(D_k), V_k))
 
-print("Matrix bytes:", bytes_stored)
+    img_compr = np.zeros((row, col, 3))
 
-k = 5
+    img_red_compr, img_green_compr, img_blue_compr = np.hsplit(img_rgb_compr, 3)
 
-U_k = U[:, 0:k]
-V_k = V[0:k, :]
-D_k = D[0:k]
+    img_compr[:, :, 0] = img_red_compr
+    img_compr[:, :, 1] = img_green_compr
+    img_compr[:, :, 2] = img_blue_compr
 
-compressed_bytes = sum([matrix.nbytes for matrix in [U_k, D_k, V_k]])
+    img_compr[img_compr < 0] = 0
+    img_compr[img_compr > 1] = 1
 
-print("Compressed matrix bytes:", compressed_bytes)
+    plt.imshow(img_compr)
+    plt.xlabel('rank = {}'.format(k))
 
-img_rgb_compr = np.dot(U_k, np.dot(np.diag(D_k), V_k))
+    plt.show()
 
-img_compr = np.zeros((row, col, 3))
+    matplotlib.image.imsave('compressed_{}.{}'.format(k, image.split('.')[-1]), img_compr)
 
-img_red_compr, img_green_compr, img_blue_compr = np.hsplit(img_rgb_compr, 3)
+    mse = ((img - img_compr)**2).mean(axis=None)
 
-img_compr[:, :, 0] = img_red_compr
-img_compr[:, :, 1] = img_green_compr
-img_compr[:, :, 2] = img_blue_compr
+    return bytes_stored, compressed_bytes, mse
 
-img_compr[img_compr < 0] = 0
-img_compr[img_compr > 1] = 1
 
-plt.imshow(img_compr)
-plt.xlabel('rank = {}'.format(k))
+bytes_stored, compressed_bytes, mse = img_compr_stacked("shrek.jpeg", 100)
 
-plt.show()
-
-matplotlib.image.imsave('compressed_{}.{}'.format(k, image.split('.')[-1]), img_compr)
+print(bytes_stored, compressed_bytes, mse)
